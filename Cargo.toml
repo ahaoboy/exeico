@@ -1,0 +1,19 @@
+[package]
+name = "exeico"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "exeico"
+repository = "https://github.com/ahaoboy/exeico"
+homepage = "https://github.com/ahaoboy/exeico"
+authors = ["ahaoboy"]
+
+[dependencies]
+pelite = "0.10"
+
+[profile.release]
+debug = false
+lto = true
+strip = true
+opt-level = 3
+codegen-units = 1

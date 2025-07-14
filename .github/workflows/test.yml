@@ -1,0 +1,50 @@
+name: Test
+
+permissions:
+  contents: write
+
+on: [push]
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -CeEuo pipefail {0}
+
+jobs:
+  rust-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-13, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt,clippy
+          rustflags: "-A warnings"
+          toolchain: "stable"
+          target: wasm32-unknown-unknown
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Run
+        run: |
+          cargo -q test
+      - name: Run bash
+        if: ${{ !startsWith(matrix.os, 'windows') }}
+        run: |
+          cargo -q run -- GREET=Joe bash -c 'echo $GREET'
+      - name: Run powershell
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          cargo -q run -- GREET=Joe powershell -c 'echo $env:GREET'
+      - name: Run cmd
+        shell: powershell
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          cargo -q run -- GREET=Joe cmd /c echo %GREET%
