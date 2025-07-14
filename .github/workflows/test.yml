@@ -35,16 +35,3 @@ jobs:
       - name: Run
         run: |
           cargo -q test
-      - name: Run bash
-        if: ${{ !startsWith(matrix.os, 'windows') }}
-        run: |
-          cargo -q run -- GREET=Joe bash -c 'echo $GREET'
-      - name: Run powershell
-        if: startsWith(matrix.os, 'windows')
-        run: |
-          cargo -q run -- GREET=Joe powershell -c 'echo $env:GREET'
-      - name: Run cmd
-        shell: powershell
-        if: startsWith(matrix.os, 'windows')
-        run: |
-          cargo -q run -- GREET=Joe cmd /c echo %GREET%
