@@ -10,7 +10,7 @@ fn main() {
         return;
     };
 
-    let id = id.parse::<i32>().expect("Invalid icon ID").abs() as u32;
+    let id = id.parse::<i32>().expect("Invalid icon ID").unsigned_abs();
     let bin = std::fs::read(exe_path).expect("Failed to read EXE file");
     let ico = get_ico(&bin, id).expect("Failed to get icon");
     std::fs::write(ico_path, ico).expect("Failed to write icon file");
