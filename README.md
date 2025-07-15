@@ -9,8 +9,13 @@ A Rust library for working with Portable Executable (PE) files on Windows, built
 ```bash
 exeico <exe_path> <id> <ico_path>
 
-
+exeico <exe_path> <ico_dir>
 ```
+
+If id is less than 0, it is considered as a resource id, otherwise it is considered as an array index
+
+If there is no id, all images are saved to ico_dir
+
 ### Example
 
 Add `exeico` to your `Cargo.toml`:
