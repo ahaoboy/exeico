@@ -7,6 +7,7 @@ on: [push]
 
 env:
   CARGO_TERM_COLOR: always
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 defaults:
   run:
@@ -31,7 +32,24 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10
+
+      - uses: easy-install/easy-setup@v1
+        with:
+          url: |-
+            https://github.com/atanunq/viu
       - uses: cargo-bins/cargo-binstall@main
       - name: Run
         run: |
           cargo -q test
+
+      - name: test
+        run: |
+          cargo -q run -- C:/Windows/System32/UserAccountControlSettings.exe dist
+
+          ls dist
+
+          for file in "dist"/*; do
+              if [ -f "$file" ]; then
+                  viu $file
+              fi
+          done
