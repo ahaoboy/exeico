@@ -42,14 +42,31 @@ jobs:
         run: |
           cargo -q test
 
-      - name: test
+      - name: test bin
         run: |
-          cargo -q run -- bin C:/Windows/System32/UserAccountControlSettings.exe dist
+          cargo -q run -- bin C:/Windows/System32/UserAccountControlSettings.exe bin
 
-          ls dist
+          ls bin
 
-          for file in "dist"/*; do
+          for file in "bin"/*; do
               if [ -f "$file" ]; then
                   viu $file
               fi
           done
+
+      - name: test dll
+        run: |
+          cargo -q run -- dll C:/Windows/System32/display.dll dll
+
+          ls dll
+
+          for file in "dll"/*; do
+              if [ -f "$file" ]; then
+                  viu $file
+              fi
+          done
+      - name: test exe
+        run: |
+          cargo -q run -- exe c:/WINDOWS/explorer.exe exe.ico
+
+          viu exe.ico
