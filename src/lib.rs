@@ -8,6 +8,8 @@ use std::io::Cursor;
 use std::io::{Read, Seek, SeekFrom};
 mod exe;
 pub use exe::*;
+mod dll;
+pub use dll::*;
 
 fn is64(bin: &[u8]) -> Result<bool> {
     let mut file = Cursor::new(bin);
