@@ -15,7 +15,7 @@ fn main() -> Result<()> {
                 let mut out_path = PathBuf::from(&second);
                 out_path.push(format!("{}.ico", ico.id));
                 std::fs::write(&out_path, &ico.data)
-                    .with_context(|| format!("Failed to write icon file: {:?}", out_path))?;
+                    .with_context(|| format!("Failed to write icon file: {out_path:?}"))?;
             }
             println!("Extracted {} icons to {}", icos.len(), second);
         }

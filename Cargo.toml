@@ -11,6 +11,7 @@ authors = ["ahaoboy"]
 [dependencies]
 anyhow = "1.0"
 pelite = "0.10"
+base64 = "0.22"
 
 [profile.release]
 debug = false

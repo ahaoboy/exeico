@@ -6,6 +6,8 @@ use pelite::pe64;
 use pelite::resources::Name;
 use std::io::Cursor;
 use std::io::{Read, Seek, SeekFrom};
+mod exe;
+pub use exe::*;
 
 fn is64(bin: &[u8]) -> Result<bool> {
     let mut file = Cursor::new(bin);
