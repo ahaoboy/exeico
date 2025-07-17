@@ -1,10 +1,11 @@
 use anyhow::Ok;
 use base64::{Engine, engine::general_purpose};
-use std::process::Command;
+use std::{path::Path, process::Command};
 
-pub fn get_exe_ico(exe_path: &str) -> anyhow::Result<Vec<u8>> {
+pub fn get_exe_ico<P: AsRef<Path>>(exe_path: P) -> anyhow::Result<Vec<u8>> {
+    let s = exe_path.as_ref().to_string_lossy();
     let pwsh = format!(
-        r#"Add-Type -AssemblyName System.Drawing; $icon=[System.Drawing.Icon]::ExtractAssociatedIcon('{exe_path}'); $ms = New-Object System.IO.MemoryStream; $icon.Save($ms); [Convert]::ToBase64String($ms.ToArray())"#
+        r#"Add-Type -AssemblyName System.Drawing; $icon=[System.Drawing.Icon]::ExtractAssociatedIcon('{s}'); $ms = New-Object System.IO.MemoryStream; $icon.Save($ms); [Convert]::ToBase64String($ms.ToArray())"#
     );
     let output = Command::new("powershell")
         .args(["-NoProfile", "-Command", &pwsh])
