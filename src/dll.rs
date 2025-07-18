@@ -65,7 +65,12 @@ fn convert_hicon_to_rgba_image(hicon: &HICON) -> anyhow::Result<RgbaImage> {
             ..Default::default()
         };
         if !GetIconInfoExW(*hicon, &mut icon_info).as_bool() {
-            anyhow::bail!("Failed to get icon info: {} {}:{}", file!(), line!(), column!());
+            anyhow::bail!(
+                "Failed to get icon info: {} {}:{}",
+                file!(),
+                line!(),
+                column!()
+            );
         }
         let hdc_screen = CreateCompatibleDC(None);
         let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
@@ -121,6 +126,7 @@ use std::arch::x86_64::_mm_setr_epi8;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::_mm_shuffle_epi8;
 use std::arch::x86_64::_mm_storeu_si128;
+use std::io::Cursor;
 use std::path::Path;
 
 /// Convert BGRA to RGBA
@@ -156,4 +162,124 @@ pub fn get_dll_icos<P: AsRef<Path>>(path: P) -> anyhow::Result<Vec<Vec<u8>>> {
         v.push(bin.into_inner());
     }
     Ok(v)
+}
+
+fn extract_text_resource_to_file(
+    dll_path: &str,
+    id: i32,
+) -> Result<String, Box<dyn std::error::Error>> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr;
+    use winapi::um::libloaderapi::LOAD_LIBRARY_AS_DATAFILE;
+    use winapi::um::libloaderapi::LoadStringW;
+    use winapi::um::libloaderapi::{
+        FindResourceW, FreeLibrary, LoadLibraryExW, LoadResource, LockResource, SizeofResource,
+    };
+    use winapi::um::winuser::MAKEINTRESOURCEW;
+
+    const RT_RCDATA: i32 = 10;
+
+    fn to_wstring(s: &str) -> Vec<u16> {
+        OsStr::new(s).encode_wide().chain(Some(0)).collect()
+    }
+
+    let dll_path_w = to_wstring(dll_path);
+    let h_module = unsafe {
+        LoadLibraryExW(
+            dll_path_w.as_ptr(),
+            ptr::null_mut(),
+            LOAD_LIBRARY_AS_DATAFILE,
+        )
+    };
+
+    if h_module.is_null() {
+        return Err("Failed to load library".into());
+    }
+
+    let result = (|| {
+        // Attempt to load as string resource
+        let mut buffer = [0u16; 4096];
+        let len = unsafe {
+            LoadStringW(
+                h_module,
+                id as u32,
+                buffer.as_mut_ptr(),
+                buffer.len() as i32,
+            )
+        };
+
+        if len > 0 {
+            let text = String::from_utf16(&buffer[..len as usize]).unwrap();
+            return Ok(text);
+        }
+
+        let h_res = unsafe {
+            FindResourceW(
+                h_module,
+                MAKEINTRESOURCEW(id as u16),
+                MAKEINTRESOURCEW(RT_RCDATA as u16),
+            )
+        };
+        if h_res.is_null() {
+            return Err("Resource not found");
+        }
+
+        let size = unsafe { SizeofResource(h_module, h_res) };
+        let h_data = unsafe { LoadResource(h_module, h_res) };
+        let p_data = unsafe { LockResource(h_data) };
+
+        let data = unsafe { std::slice::from_raw_parts(p_data as *const u8, size as usize) };
+        Ok(String::from_utf8_lossy(data).to_string())
+    })();
+
+    unsafe {
+        FreeLibrary(h_module);
+    }
+    Ok(result?)
+}
+
+pub fn get_dll_txt<P: AsRef<Path>>(path: P, id: i32) -> anyhow::Result<String> {
+    let s = path.as_ref().to_string_lossy();
+    let txt = extract_text_resource_to_file(&s, id).unwrap();
+    Ok(txt)
+}
+
+pub fn get_dll_ico<P: AsRef<Path>>(path: P, id: i32) -> anyhow::Result<Vec<u8>> {
+    unsafe {
+        let path = path.as_ref().to_string_lossy();
+        let path_cstr = U16CString::from_str(path)
+            .map_err(|e| anyhow::anyhow!("Failed to convert path to U16CString: {e}"))?;
+        let path_pcwstr = PCWSTR(path_cstr.as_ptr());
+        let mut large_icons = vec![HICON::default(); 1];
+        let mut small_icons = vec![HICON::default(); 1];
+        let num_icons_fetched = ExtractIconExW(
+            path_pcwstr,
+            id,
+            Some(large_icons.as_mut_ptr()),
+            Some(small_icons.as_mut_ptr()),
+            1,
+        );
+
+        if num_icons_fetched == 0 {
+            return Ok(Vec::new()); // No icons extracted
+        }
+
+        if !large_icons[0].is_invalid() {
+            let img = convert_hicon_to_rgba_image(&large_icons[0])?;
+            let mut bin = Cursor::new(Vec::new());
+            img.write_to(&mut bin, image::ImageFormat::Png)
+                .map_err(|e| anyhow::anyhow!("Failed to write image to PNG: {e}"))?;
+            return Ok(bin.into_inner());
+        }
+        if !small_icons[0].is_invalid() {
+            let img = convert_hicon_to_rgba_image(&small_icons[0])?;
+            let mut bin = Cursor::new(Vec::new());
+            img.write_to(&mut bin, image::ImageFormat::Png)
+                .map_err(|e| anyhow::anyhow!("Failed to write image to PNG: {e}"))?;
+            return Ok(bin.into_inner());
+        }
+
+        Err(anyhow::format_err!("not found ico"))
+    }
 }

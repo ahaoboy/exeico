@@ -68,5 +68,11 @@ jobs:
       - name: test exe
         run: |
           cargo -q run -- exe c:/WINDOWS/explorer.exe exe.ico
-
           viu exe.ico
+      - name: test dll-txt
+        run: |
+          cargo -q run -- dll-txt "C:/Windows/System32/shell32.dll" 30312
+      - name: test dll-ico
+        run: |
+          cargo -q run -- dll-ico "C:/WINDOWS/system32/imageres.dll" 109 "./dll-ico.ico"
+          viu dll-ico.ico
