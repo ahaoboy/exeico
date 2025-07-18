@@ -164,10 +164,7 @@ pub fn get_dll_icos<P: AsRef<Path>>(path: P) -> anyhow::Result<Vec<Vec<u8>>> {
     Ok(v)
 }
 
-fn extract_text_resource_to_file(
-    dll_path: &str,
-    id: i32,
-) -> Result<String, Box<dyn std::error::Error>> {
+fn extract_text_resource_to_file(dll_path: &str, id: i32) -> anyhow::Result<String> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use std::ptr;
@@ -194,7 +191,7 @@ fn extract_text_resource_to_file(
     };
 
     if h_module.is_null() {
-        return Err("Failed to load library".into());
+        anyhow::bail!("Failed to load library");
     }
 
     let result = (|| {
@@ -210,7 +207,8 @@ fn extract_text_resource_to_file(
         };
 
         if len > 0 {
-            let text = String::from_utf16(&buffer[..len as usize]).unwrap();
+            let text = String::from_utf16(&buffer[..len as usize])
+                .map_err(|e| anyhow::anyhow!("UTF-16 decode error: {e}"))?;
             return Ok(text);
         }
 
@@ -222,12 +220,16 @@ fn extract_text_resource_to_file(
             )
         };
         if h_res.is_null() {
-            return Err("Resource not found");
+            anyhow::bail!("Resource not found");
         }
 
         let size = unsafe { SizeofResource(h_module, h_res) };
         let h_data = unsafe { LoadResource(h_module, h_res) };
         let p_data = unsafe { LockResource(h_data) };
+
+        if p_data.is_null() || size == 0 {
+            anyhow::bail!("Failed to load or lock resource data");
+        }
 
         let data = unsafe { std::slice::from_raw_parts(p_data as *const u8, size as usize) };
         Ok(String::from_utf8_lossy(data).to_string())
@@ -236,12 +238,12 @@ fn extract_text_resource_to_file(
     unsafe {
         FreeLibrary(h_module);
     }
-    Ok(result?)
+    result
 }
 
 pub fn get_dll_txt<P: AsRef<Path>>(path: P, id: i32) -> anyhow::Result<String> {
     let s = path.as_ref().to_string_lossy();
-    let txt = extract_text_resource_to_file(&s, id).unwrap();
+    let txt = extract_text_resource_to_file(&s, id)?;
     Ok(txt)
 }
 
