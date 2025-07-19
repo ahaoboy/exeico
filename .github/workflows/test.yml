@@ -78,3 +78,10 @@ jobs:
         run: |
           cargo -q run -- dll-ico "C:/WINDOWS/system32/imageres.dll" 109 "./dll-ico.ico"
           viu dll-ico.ico
+
+          cargo -q run -- dll-ico 'C:\\WINDOWS\\system32//edputil.dll'  1002 lock1.ico
+          cargo -q run -- dll-ico 'C:\\WINDOWS\\system32//edputil.dll' -1002 lock2.ico
+          viu lock1.ico
+          viu lock2.ico
+
+          cargo -q run -- dll-ico 'C:\\WINDOWS\\system32\\themecpl.dll' 1 a.ico
