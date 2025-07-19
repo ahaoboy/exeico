@@ -95,12 +95,12 @@ fn main() -> Result<()> {
             )?;
         }
         (Some("dll-txt"), Some(dll_path), Some(id), None) => {
-            let id: i32 = id.parse().map_err(|_| error::parse_error("id", id))?;
+            let id = id.parse().map_err(|_| error::parse_error("id", id))?;
             let txt = get_dll_txt(&dll_path, id).context("Failed to get dll txt")?;
             println!("{txt}");
         }
         (Some("dll-ico"), Some(dll_path), Some(id), Some(ico_path)) => {
-            let id: i32 = id.parse().map_err(|_| error::parse_error("id", id))?;
+            let id = id.parse().map_err(|_| error::parse_error("id", id))?;
             extract_single_icon(
                 || get_dll_ico(&dll_path, id).context("Failed to get dll ico"),
                 &dll_path,

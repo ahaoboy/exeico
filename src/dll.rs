@@ -19,7 +19,7 @@ use windows::Win32::UI::WindowsAndMessaging::ICONINFOEXW;
 use windows::core::PCWSTR;
 
 /// Generic icon extraction function that supports extracting single or multiple icons
-fn get_images_from_exe(executable_path: &str, id: Option<i32>) -> anyhow::Result<Vec<RgbaImage>> {
+fn get_images_from_exe(executable_path: &str, id: Option<u32>) -> anyhow::Result<Vec<RgbaImage>> {
     unsafe {
         let path_cstr = U16CString::from_str(executable_path)
             .map_err(|e| anyhow::anyhow!("Failed to convert path to U16CString: {e}"))?;
@@ -38,7 +38,7 @@ fn get_images_from_exe(executable_path: &str, id: Option<i32>) -> anyhow::Result
         let mut small_icons = vec![HICON::default(); num_icons_total as usize];
         let num_icons_fetched = ExtractIconExW(
             path_pcwstr,
-            id.unwrap_or(0),
+            id.map(|i| i as i32).unwrap_or(0),
             Some(large_icons.as_mut_ptr()),
             Some(small_icons.as_mut_ptr()),
             num_icons_total,
@@ -176,7 +176,7 @@ fn convert_images_to_ico(images: Vec<RgbaImage>) -> anyhow::Result<Vec<Vec<u8>>>
 /// Generic icon extraction function that supports extracting all icons or a single icon
 fn extract_icons_from_path<P: AsRef<Path>>(
     path: P,
-    id: Option<i32>,
+    id: Option<u32>,
 ) -> anyhow::Result<Vec<Vec<u8>>> {
     let exe_path = path.as_ref().to_string_lossy();
     let icons = get_images_from_exe(&exe_path, id)?;
@@ -188,14 +188,14 @@ pub fn get_dll_icos<P: AsRef<Path>>(path: P) -> anyhow::Result<Vec<Vec<u8>>> {
 }
 
 pub fn get_dll_ico<P: AsRef<Path>>(path: P, id: i32) -> anyhow::Result<Vec<u8>> {
-    let icons = extract_icons_from_path(path, Some(id))?;
+    let icons = extract_icons_from_path(path, Some(id.unsigned_abs()))?;
     icons
         .into_iter()
         .next()
         .ok_or_else(|| anyhow::anyhow!("No icons found in the DLL"))
 }
 
-fn extract_text_resource_to_file(dll_path: &str, id: i32) -> anyhow::Result<String> {
+fn extract_text_resource_to_file(dll_path: &str, id: u32) -> anyhow::Result<String> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use std::ptr;
@@ -228,14 +228,7 @@ fn extract_text_resource_to_file(dll_path: &str, id: i32) -> anyhow::Result<Stri
     let result = (|| {
         // Attempt to load as string resource
         let mut buffer = [0u16; 4096];
-        let len = unsafe {
-            LoadStringW(
-                h_module,
-                id as u32,
-                buffer.as_mut_ptr(),
-                buffer.len() as i32,
-            )
-        };
+        let len = unsafe { LoadStringW(h_module, id, buffer.as_mut_ptr(), buffer.len() as i32) };
 
         if len > 0 {
             let text = String::from_utf16(&buffer[..len as usize])
@@ -274,6 +267,6 @@ fn extract_text_resource_to_file(dll_path: &str, id: i32) -> anyhow::Result<Stri
 
 pub fn get_dll_txt<P: AsRef<Path>>(path: P, id: i32) -> anyhow::Result<String> {
     let s = path.as_ref().to_string_lossy();
-    let txt = extract_text_resource_to_file(&s, id)?;
+    let txt = extract_text_resource_to_file(&s, id.unsigned_abs())?;
     Ok(txt)
 }
