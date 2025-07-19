@@ -160,14 +160,14 @@ pub fn bgra_to_rgba(data: &mut [u8]) {
     }
 }
 
-/// Generic function to convert images to PNG format
-fn convert_images_to_png(images: Vec<RgbaImage>) -> anyhow::Result<Vec<Vec<u8>>> {
+/// Generic function to convert images to ICO format
+fn convert_images_to_ico(images: Vec<RgbaImage>) -> anyhow::Result<Vec<Vec<u8>>> {
     let mut v = vec![];
     for image in images {
         let mut bin = Cursor::new(Vec::new());
         image
-            .write_to(&mut bin, image::ImageFormat::Png)
-            .map_err(|e| anyhow::anyhow!("Failed to write image to PNG: {e}"))?;
+            .write_to(&mut bin, image::ImageFormat::Ico)
+            .map_err(|e| anyhow::anyhow!("Failed to write image to Ico: {e}"))?;
         v.push(bin.into_inner());
     }
     Ok(v)
@@ -180,7 +180,7 @@ fn extract_icons_from_path<P: AsRef<Path>>(
 ) -> anyhow::Result<Vec<Vec<u8>>> {
     let exe_path = path.as_ref().to_string_lossy();
     let icons = get_images_from_exe(&exe_path, id)?;
-    convert_images_to_png(icons)
+    convert_images_to_ico(icons)
 }
 
 pub fn get_dll_icos<P: AsRef<Path>>(path: P) -> anyhow::Result<Vec<Vec<u8>>> {

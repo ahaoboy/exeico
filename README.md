@@ -102,7 +102,7 @@ fn main() -> Result<()> {
     // Extract all icons from DLL
     let dll_icons = get_dll_icos("mylib.dll")?;
     for (i, icon_data) in dll_icons.iter().enumerate() {
-        std::fs::write(format!("dll_icon_{}.png", i), icon_data)?;
+        std::fs::write(format!("dll_icon_{}.ico", i), icon_data)?;
     }
 
     Ok(())
@@ -118,7 +118,7 @@ use anyhow::Result;
 fn extract_resources() -> Result<()> {
     // Extract specific icon from DLL
     let icon_data = get_dll_ico("mylib.dll", 1)?;
-    std::fs::write("specific_icon.png", icon_data)?;
+    std::fs::write("specific_icon.ico", icon_data)?;
 
     // Extract text resource from DLL
     let text = get_dll_txt("mylib.dll", 100)?;

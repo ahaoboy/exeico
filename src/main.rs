@@ -90,7 +90,7 @@ fn main() -> Result<()> {
                 || get_dll_icos(&dll_path).context("Failed to get dll icons"),
                 &dll_path,
                 &ico_dir,
-                |i| format!("{i}.png"),
+                |i| format!("{i}.ico"),
                 "Extracted",
             )?;
         }
@@ -146,7 +146,7 @@ fn main() -> Result<()> {
                 "  exeico exe <exe_path> <ico_path>         # Extract main icon from exe to .ico"
             );
             println!(
-                "  exeico dll <dll_path> <ico_dir>          # Extract all icons from dll to .png"
+                "  exeico dll <dll_path> <ico_dir>          # Extract all icons from dll to .ico"
             );
             println!(
                 "  exeico bin <bin_path> <ico_id> <ico_path> # Extract icon by id from binary to .ico"
