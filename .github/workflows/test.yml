@@ -67,8 +67,10 @@ jobs:
           done
       - name: test exe
         run: |
-          cargo -q run -- exe c:/WINDOWS/explorer.exe exe.ico
+          cargo -q run -- exe "c:/WINDOWS/explorer.exe" exe.ico
           viu exe.ico
+          cargo -q run -- exe "C:/Windows/System32/notepad.exe" notepad.ico
+          viu notepad.ico
       - name: test dll-txt
         run: |
           cargo -q run -- dll-txt "C:/Windows/System32/shell32.dll" 30312

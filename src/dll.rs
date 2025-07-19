@@ -1,5 +1,7 @@
 use image::ImageBuffer;
 use image::RgbaImage;
+use std::io::Cursor;
+use std::path::Path;
 use widestring::U16CString;
 use windows::Win32::Graphics::Gdi::BITMAPINFO;
 use windows::Win32::Graphics::Gdi::BITMAPINFOHEADER;
@@ -16,12 +18,18 @@ use windows::Win32::UI::WindowsAndMessaging::HICON;
 use windows::Win32::UI::WindowsAndMessaging::ICONINFOEXW;
 use windows::core::PCWSTR;
 
-fn get_images_from_exe(executable_path: &str) -> anyhow::Result<Vec<RgbaImage>> {
+/// Generic icon extraction function that supports extracting single or multiple icons
+fn get_images_from_exe(executable_path: &str, id: Option<i32>) -> anyhow::Result<Vec<RgbaImage>> {
     unsafe {
         let path_cstr = U16CString::from_str(executable_path)
             .map_err(|e| anyhow::anyhow!("Failed to convert path to U16CString: {e}"))?;
         let path_pcwstr = PCWSTR(path_cstr.as_ptr());
-        let num_icons_total = ExtractIconExW(path_pcwstr, -1, None, None, 0);
+
+        let num_icons_total = match id {
+            Some(_) => 1,
+            None => ExtractIconExW(path_pcwstr, -1, None, None, 0),
+        };
+
         if num_icons_total == 0 {
             return Ok(vec![]); // No icons extracted
         }
@@ -30,7 +38,7 @@ fn get_images_from_exe(executable_path: &str) -> anyhow::Result<Vec<RgbaImage>> 
         let mut small_icons = vec![HICON::default(); num_icons_total as usize];
         let num_icons_fetched = ExtractIconExW(
             path_pcwstr,
-            0,
+            id.unwrap_or(0),
             Some(large_icons.as_mut_ptr()),
             Some(small_icons.as_mut_ptr()),
             num_icons_total,
@@ -46,6 +54,7 @@ fn get_images_from_exe(executable_path: &str) -> anyhow::Result<Vec<RgbaImage>> 
             .filter_map(|icon| convert_hicon_to_rgba_image(icon).ok())
             .collect();
 
+        // Clean up icons
         large_icons
             .iter()
             .chain(small_icons.iter())
@@ -72,6 +81,7 @@ fn convert_hicon_to_rgba_image(hicon: &HICON) -> anyhow::Result<RgbaImage> {
                 column!()
             );
         }
+
         let hdc_screen = CreateCompatibleDC(None);
         let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
         let hbm_old = SelectObject(hdc_mem, icon_info.hbmColor.into());
@@ -104,6 +114,7 @@ fn convert_hicon_to_rgba_image(hicon: &HICON) -> anyhow::Result<RgbaImage> {
         {
             anyhow::bail!("Failed to get DIB bits");
         }
+
         // Clean up
         SelectObject(hdc_mem, hbm_old);
         let _ = DeleteDC(hdc_mem);
@@ -118,6 +129,7 @@ fn convert_hicon_to_rgba_image(hicon: &HICON) -> anyhow::Result<RgbaImage> {
         Ok(image)
     }
 }
+
 #[cfg(target_arch = "x86")]
 use std::arch::x86::_mm_shuffle_epi8;
 use std::arch::x86_64::__m128i;
@@ -126,8 +138,6 @@ use std::arch::x86_64::_mm_setr_epi8;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::_mm_shuffle_epi8;
 use std::arch::x86_64::_mm_storeu_si128;
-use std::io::Cursor;
-use std::path::Path;
 
 /// Convert BGRA to RGBA
 ///
@@ -150,18 +160,39 @@ pub fn bgra_to_rgba(data: &mut [u8]) {
     }
 }
 
-pub fn get_dll_icos<P: AsRef<Path>>(path: P) -> anyhow::Result<Vec<Vec<u8>>> {
-    let exe_path = path.as_ref().to_string_lossy();
-    let icons = get_images_from_exe(&exe_path)?;
+/// Generic function to convert images to PNG format
+fn convert_images_to_png(images: Vec<RgbaImage>) -> anyhow::Result<Vec<Vec<u8>>> {
     let mut v = vec![];
-    use std::io::Cursor;
-    for i in icons {
+    for image in images {
         let mut bin = Cursor::new(Vec::new());
-        i.write_to(&mut bin, image::ImageFormat::Png)
+        image
+            .write_to(&mut bin, image::ImageFormat::Png)
             .map_err(|e| anyhow::anyhow!("Failed to write image to PNG: {e}"))?;
         v.push(bin.into_inner());
     }
     Ok(v)
+}
+
+/// Generic icon extraction function that supports extracting all icons or a single icon
+fn extract_icons_from_path<P: AsRef<Path>>(
+    path: P,
+    id: Option<i32>,
+) -> anyhow::Result<Vec<Vec<u8>>> {
+    let exe_path = path.as_ref().to_string_lossy();
+    let icons = get_images_from_exe(&exe_path, id)?;
+    convert_images_to_png(icons)
+}
+
+pub fn get_dll_icos<P: AsRef<Path>>(path: P) -> anyhow::Result<Vec<Vec<u8>>> {
+    extract_icons_from_path(path, None)
+}
+
+pub fn get_dll_ico<P: AsRef<Path>>(path: P, id: i32) -> anyhow::Result<Vec<u8>> {
+    let icons = extract_icons_from_path(path, Some(id))?;
+    icons
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("No icons found in the DLL"))
 }
 
 fn extract_text_resource_to_file(dll_path: &str, id: i32) -> anyhow::Result<String> {
@@ -245,43 +276,4 @@ pub fn get_dll_txt<P: AsRef<Path>>(path: P, id: i32) -> anyhow::Result<String> {
     let s = path.as_ref().to_string_lossy();
     let txt = extract_text_resource_to_file(&s, id)?;
     Ok(txt)
-}
-
-pub fn get_dll_ico<P: AsRef<Path>>(path: P, id: i32) -> anyhow::Result<Vec<u8>> {
-    unsafe {
-        let path = path.as_ref().to_string_lossy();
-        let path_cstr = U16CString::from_str(path)
-            .map_err(|e| anyhow::anyhow!("Failed to convert path to U16CString: {e}"))?;
-        let path_pcwstr = PCWSTR(path_cstr.as_ptr());
-        let mut large_icons = vec![HICON::default(); 1];
-        let mut small_icons = vec![HICON::default(); 1];
-        let num_icons_fetched = ExtractIconExW(
-            path_pcwstr,
-            id,
-            Some(large_icons.as_mut_ptr()),
-            Some(small_icons.as_mut_ptr()),
-            1,
-        );
-
-        if num_icons_fetched == 0 {
-            return Ok(Vec::new()); // No icons extracted
-        }
-
-        if !large_icons[0].is_invalid() {
-            let img = convert_hicon_to_rgba_image(&large_icons[0])?;
-            let mut bin = Cursor::new(Vec::new());
-            img.write_to(&mut bin, image::ImageFormat::Png)
-                .map_err(|e| anyhow::anyhow!("Failed to write image to PNG: {e}"))?;
-            return Ok(bin.into_inner());
-        }
-        if !small_icons[0].is_invalid() {
-            let img = convert_hicon_to_rgba_image(&small_icons[0])?;
-            let mut bin = Cursor::new(Vec::new());
-            img.write_to(&mut bin, image::ImageFormat::Png)
-                .map_err(|e| anyhow::anyhow!("Failed to write image to PNG: {e}"))?;
-            return Ok(bin.into_inner());
-        }
-
-        Err(anyhow::format_err!("not found ico"))
-    }
 }

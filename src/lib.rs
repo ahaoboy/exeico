@@ -11,6 +11,31 @@ pub use exe::*;
 mod dll;
 pub use dll::*;
 
+/// Common error handling module
+pub mod error {
+    use anyhow::anyhow;
+    use std::path::Path;
+
+    /// Common file operation error handling
+    pub fn file_operation_error<P: AsRef<Path>>(
+        operation: &str,
+        path: P,
+        error: std::io::Error,
+    ) -> anyhow::Error {
+        anyhow!("{} failed for {:?}: {}", operation, path.as_ref(), error)
+    }
+
+    /// Common parsing error handling
+    pub fn parse_error<T: std::fmt::Display>(item: &str, value: T) -> anyhow::Error {
+        anyhow!("Failed to parse {}: {}", item, value)
+    }
+
+    /// Common resource not found error handling
+    pub fn resource_not_found(resource_type: &str, id: i32) -> anyhow::Error {
+        anyhow!("{} with id {} not found", resource_type, id)
+    }
+}
+
 fn is64(bin: &[u8]) -> Result<bool> {
     let mut file = Cursor::new(bin);
 
@@ -60,45 +85,43 @@ impl PeResources for pe64::PeFile<'_> {
     }
 }
 
-pub fn get_ico(bin: &[u8], ico_id: i32) -> Result<Vec<u8>> {
+/// Generic PE file processing function that calls the appropriate handler based on file type
+fn with_pe_file<F, T>(bin: &[u8], f: F) -> Result<T>
+where
+    F: FnOnce(&dyn PeResources) -> Result<T>,
+{
     let is_pe64 = is64(bin)?;
 
     if is_pe64 {
         let pe = pe64::PeFile::from_bytes(bin).context("Failed to parse PE64 file")?;
-        extract_ico(&pe, ico_id)
+        f(&pe)
     } else {
         let pe = pe32::PeFile::from_bytes(bin).context("Failed to parse PE32 file")?;
-        extract_ico(&pe, ico_id)
+        f(&pe)
     }
 }
 
-fn extract_ico<P: PeResources>(pe: &P, ico_id: i32) -> Result<Vec<u8>> {
+pub fn get_ico(bin: &[u8], ico_id: i32) -> Result<Vec<u8>> {
+    with_pe_file(bin, |pe| extract_ico(pe, ico_id))
+}
+
+fn extract_ico<P: PeResources + ?Sized>(pe: &P, ico_id: i32) -> Result<Vec<u8>> {
     let resources = pe
         .get_resources()
         .context("No resources found in PE file")?;
     let group_icon_data = resources.icons().flat_map(|i| i.ok());
-    for (i, (name, res)) in group_icon_data.enumerate() {
-        if ico_id < 0 && name == Name::Id(ico_id.unsigned_abs())
-            || (ico_id >= 0 && i == ico_id as usize)
-        {
+    for (name, res) in group_icon_data {
+        if name == Name::Id(ico_id.unsigned_abs()) {
             let mut v = vec![];
             res.write(&mut v).context("Failed to write icon data")?;
             return Ok(v);
         }
     }
-    anyhow::bail!("Icon with id {ico_id} not found")
+    Err(error::resource_not_found("Icon", ico_id))
 }
 
 pub fn get_icos(bin: &[u8]) -> Result<Vec<Ico>> {
-    let is_pe64 = is64(bin)?;
-
-    if is_pe64 {
-        let pe = pe64::PeFile::from_bytes(bin).context("Failed to parse PE64 file")?;
-        extract_icos(&pe)
-    } else {
-        let pe = pe32::PeFile::from_bytes(bin).context("Failed to parse PE32 file")?;
-        extract_icos(&pe)
-    }
+    with_pe_file(bin, |pe| extract_icos(pe))
 }
 
 pub struct Ico {
@@ -106,7 +129,7 @@ pub struct Ico {
     pub data: Vec<u8>,
 }
 
-fn extract_icos<P: PeResources>(pe: &P) -> Result<Vec<Ico>> {
+fn extract_icos<P: PeResources + ?Sized>(pe: &P) -> Result<Vec<Ico>> {
     let resources = pe
         .get_resources()
         .context("No resources found in PE file")?;
