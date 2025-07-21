@@ -1,6 +1,8 @@
 use anyhow::Ok;
 use base64::{Engine, engine::general_purpose};
+use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 use std::{path::Path, process::Command};
+use std::os::windows::process::CommandExt;
 
 pub fn get_exe_ico<P: AsRef<Path>>(exe_path: P) -> anyhow::Result<Vec<u8>> {
     let s = exe_path.as_ref().to_string_lossy();
@@ -9,6 +11,7 @@ pub fn get_exe_ico<P: AsRef<Path>>(exe_path: P) -> anyhow::Result<Vec<u8>> {
     );
     let output = Command::new("powershell")
         .args(["-NoProfile", "-Command", &pwsh])
+        .creation_flags(CREATE_NO_WINDOW.0)
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let icon_bytes = general_purpose::STANDARD.decode(stdout.trim())?;
