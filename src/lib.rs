@@ -33,7 +33,7 @@ pub mod error {
 /// Generic PE file processing function that calls the appropriate handler based on file type
 fn with_pe_file<F, T>(bin: &[u8], f: F) -> Result<T>
 where
-    F: FnOnce(&pelite::PeFile<'_>) -> Result<T>,
+    F: FnOnce(&pelite::PeFile) -> Result<T>,
 {
     let pe = pelite::PeFile::from_bytes(bin).context("Failed to parse PE file")?;
     f(&pe)
@@ -66,9 +66,7 @@ pub struct Ico {
 }
 
 fn extract_icos(pe: &pelite::PeFile) -> Result<Vec<Ico>> {
-    let resources = pe
-        .resources()
-        .context("No resources found in PE file")?;
+    let resources = pe.resources().context("No resources found in PE file")?;
     let group_icon_data = resources.icons().flat_map(|i| i.ok());
     let mut v = vec![];
     for (name, res) in group_icon_data {
